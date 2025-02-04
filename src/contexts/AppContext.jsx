@@ -1,32 +1,43 @@
 "use client"
 
 import { useRouter } from "next/navigation";
-import { useContext } from "react";
-import { useState } from "react";
-import { createContext } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
     const router = useRouter();
-    const [user, setUser] = useState(() => {
-        if (typeof window !== "undefined") {
-            const storedUser = localStorage.getItem("kitchenData");
-            return storedUser ? JSON.parse(storedUser) : null;
-        }
-        return null;
-    })
-
+    const [token, setToken] = useState(null);
+    const [user, setUser] = useState(null);
     const [kitchenData, setKitchenData] = useState(null);
 
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const storedUser = localStorage.getItem("kitchenData");
+            const storedToken = localStorage.getItem("kitchenToken");
+            if (storedUser) {
+                setUser(JSON.parse(storedUser));
+                setKitchenData(JSON.parse(storedUser)); 
+            }
+            if (storedToken) {
+                setToken(storedToken);
+            }
+        }
+    }, []);
     const login = (userData, token) => {
+        setToken(token);
         setUser(userData);
+        setKitchenData(userData);
         localStorage.setItem("kitchenData", JSON.stringify(userData));
+        localStorage.setItem("kitchenId", JSON.stringify(userData?._id));
         localStorage.setItem("kitchenToken", token);
+
     }
 
     const logout = () => {
+        setToken(null);
         setUser(null);
+        setKitchenData(null);
         localStorage.removeItem("kitchenData");
         localStorage.removeItem("KitchenToken");
         localStorage.removeItem("kitchenId");
@@ -34,7 +45,7 @@ export const AppProvider = ({ children }) => {
     }
 
     return (
-        <AppContext.Provider value={{ kitchenData, setKitchenData, user, login, logout }} >
+        <AppContext.Provider value={{ kitchenData, setKitchenData, user, login, logout, token }} >
             {children}
         </AppContext.Provider>
     )

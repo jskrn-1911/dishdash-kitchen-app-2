@@ -4,110 +4,69 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import DefaultLayout from '@/components/Layouts/DefaultLayout';
 import Breadcrumb from '@/components/Breadcrumbs/Breadcrumb';
-// import Kitchen from '../kitchen/page';
-const initialData = {
-    phoneNumber: "9876543210",
-    name: "Tasty Treats Kitchen",
-    ownerName: "John Doe",
-    region: "North India",
-    address: {
-        street: "456 Spice Lane",
-        city: "Mumbai",
-        state: "Maharashtra",
-        postalCode: "400001",
-        country: "India",
-    },
-    profilePhoto: "https://picsum.photos/150/150?random=1",
-    kitchenImages: [
-        "https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg",
-        "https://images.pexels.com/photos/769289/pexels-photo-769289.jpeg",
-        "https://images.pexels.com/photos/376464/pexels-photo-376464.jpeg",
-    ],
-    slogan: "Taste the Tradition, Love the Flavor",
-    description: "Authentic home-style Indian cuisine prepared with love and care.",
-    status: "online",
-    requestStatus: "approved",
-    isNewKitchen: true,
-};
+import { useUser } from '@/contexts/AppContext';
+
 
 const UpdateProfile = () => {
+    const { kitchenData, setKitchenData, token } = useUser();
+    const phoneNumber = kitchenData?.phoneNumber;
     const [formData, setFormData] = useState({
-        phoneNumber: initialData.phoneNumber || '',
-        name: initialData.name || '',
-        ownerName: initialData.ownerName || '',
-        region: initialData.region || '',
+        phoneNumber: phoneNumber,
+        name: '',
+        ownerName: '',
+        region: '',
         address: {
-            street: initialData.address?.street || '',
-            city: initialData.address?.city || '',
-            state: initialData.address?.state || '',
-            postalCode: initialData.address?.postalCode || '',
-            country: initialData.address?.country || 'India',
+            street: '',
+            city: '',
+            state: '',
+            postalCode: '',
+            country: 'India',
         },
-        profilePhoto: initialData.profilePhoto || '',
-        kitchenImages: initialData.kitchenImages || [],
-        slogan: initialData.slogan || '',
-        description: initialData.description || '',
-        status: initialData.status || 'offline',
-        requestStatus: initialData.requestStatus || 'pending approval',
-        isNewKitchen: initialData.isNewKitchen || false,
+        kitchenProfilePhoto: '',
+        kitchenImages: [],
+        slogan: '',
+        description: '',
     });
-    const [errorMessage, setMessage] = useState("");
+    const [errorMessage, setErrorMessage] = useState("");
     const [loading, setLoading] = useState(true);
-    const [kitchen, setKitchen] = useState(() => {
-        if (typeof window !== "undefined") {
-            const storedUser = localStorage.getItem("kitchenData");
-            return storedUser ? JSON.parse(storedUser) : null;
-        }
-        return null;
-    });
-    const [phoneNumber, setPhoneNumber] = useState(() => {
-        if (typeof window !== "undefined") {
-            const storedUser = localStorage.getItem("kitchenData");
-            return storedUser ? JSON.parse(storedUser.phoneNumber) : null;
-        }
-        return null;
-    });
-    // const [user, setUser] = useState(() => {
-    //     if (typeof window !== "undefined") {
-    //         const storedUser = localStorage.getItem("kitchenData");
-    //         return storedUser ? JSON.parse(storedUser) : null;
-    //     }
-    //     return null;
-    // })
-    const [originalData, setOriginalData] = useState(null); // Store original data
+
+    const [originalData, setOriginalData] = useState(kitchenData); // Store original data
     const [isChanged, setIsChanged] = useState(false); // Track if form has changed
 
-
     useEffect(() => {
-        if (driverId) {
-          const fetchDriverDetails = async () => {
-            setLoading(true);
-            try {
-              const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/dashboard/admin/getDriver/${driverId}`, {
-                method: 'GET',
-                headers: {
-                  "Authorization": `Bearer ${localStorage.getItem("token")}`
+        if (phoneNumber) {
+            const fetchKitchenDetails = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/get-kitchen-data?phoneNumber=${phoneNumber}`, {
+                        method: 'GET',
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json",
+                        },
+                        // body: JSON.stringify({ phoneNumber })
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        // setDriver(data.driver);
+                        setFormData(data.kitchen);
+                        setOriginalData(data.kitchen);
+                        console.log('Kitchen details fetched:', data.kitchen);
+                    } else {
+                        console.error('Error fetching Kitchen details:', data.message);
+                        setErrorMessage("Error fetching Kitchen Details");
+                    }
+                } catch (error) {
+                    console.error('Error fetching Kitchen details:', error);
+                    setErrorMessage("Error fetching Kitchen Details");
+                } finally {
+                    setLoading(false);
                 }
-              });
-              const data = await response.json();
-              if (response.ok) {
-                setDriver(data.driver);
-                setFormData(data.driver); // Set the fetched data into formData state
-                setOriginalData(data.driver); // Set the fetched data as original data
-                // console.log('Driver details fetched:', data.driver);
-              } else {
-                console.error('Error fetching driver details:', data.msg);
-              }
-            } catch (error) {
-              console.error('Error fetching driver details:', error);
-            } finally {
-              setLoading(false);
-            }
-          };
-    
-          fetchDriverDetails();
+            };
+
+            fetchKitchenDetails();
         }
-      }, [kitchenId]);
+    }, [phoneNumber]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
@@ -137,25 +96,76 @@ const UpdateProfile = () => {
         });
     };
 
-
+    useEffect(() => {
+        if (originalData) {
+            setIsChanged(JSON.stringify(originalData) !== JSON.stringify(formData));
+        }
+    }, [formData, originalData])
 
     const handleSubmit = async (e: any) => {
         e.preventDefault();
-        // Add your submission logic here
         console.log('Form Data:', formData);
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/update-profile?phoneNumber=${phoneNumber}`, {
+                method: "PUT",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(formData),
+            })
+            const data = await response.json();
+            if (!response.ok) {
+                setErrorMessage("Error updating profile!")
+                console.error("Failed to update kitchen profile", data.message)
+            }
+            if (response.ok) {
+                setKitchenData(data.kitchen)
+                console.log("kitchen profile updated successfully!", data.message, data)
+            }
+        } catch (error) {
+            console.error('Error fetching Kitchen details:', error);
+            setErrorMessage("Error fetching Kitchen Details");
+        } finally {
+            // setErrorMessage("");
+            setLoading(false);
+        }
     };
+
+    const handleProfilePhotoChange = (e:any) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setFormData((prev) => ({ ...prev, kitchenProfilePhoto: file }));
+        }
+    };
+
+    const handleKitchenImagesChange = (e: any) => {
+        const files = Array.from(e.target.files || []);
+        if (formData.kitchenImages.length + files.length > 20) {
+            alert("You can only upload up to 20 images");
+            return;
+        }
+        setFormData((prev: any) => ({
+            ...prev,
+            kitchenImages: [...prev.kitchenImages, ...files],
+        }));
+    };
+
 
     return (
         <DefaultLayout>
+            { }
             <div className="mx-auto max-w-270">
                 <Breadcrumb pageName="update-profile" />
                 <div className="space-y-6">
                     <div className='flex w-full justify-between items-center'>
                         <div className="justify-start text-red-600">
-                            if error, message here!
+                            {errorMessage}
                         </div>
                         <div className="justify-end">
                             <button
+                                disabled={!isChanged}
+                                onClick={handleSubmit}
                                 type="submit"
                                 className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
                             >
@@ -164,20 +174,13 @@ const UpdateProfile = () => {
                         </div>
                     </div>
 
-                    <form onSubmit={handleSubmit} >
+                    <form
+                        onSubmit={handleSubmit}
+                    >
                         <div className="grid grid-cols-5 gap-8">
                             <div className="col-span-5 xl:col-span-3">
                                 <div className="">
                                     <div className="space-y-6">
-                                        {/* <div className="flex justify-end">
-                                        <button
-                                            type="submit"
-                                            className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
-                                        >
-                                            Save Changes
-                                        </button>
-                                    </div> */}
-                                        {/* Basic Information Section */}
                                         <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
                                             <h2 className="font-medium text-black dark:text-white border-b border-stroke px-7 py-4 dark:border-strokedark">Basic Information</h2>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-7">
@@ -190,15 +193,8 @@ const UpdateProfile = () => {
                                                         value={formData.name}
                                                         onChange={handleInputChange}
                                                         id="name"
-                                                        placeholder="Kitchen Name"
+                                                        placeholder="kitchen name here..."
                                                     />
-                                                    {/* <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 p-2"
-              /> */}
                                                 </div>
                                                 <div>
                                                     <label className="mb-3 block text-sm font-medium text-black dark:text-white">Owner Name</label>
@@ -235,63 +231,49 @@ const UpdateProfile = () => {
                                                             value={formData.ownerName}
                                                             onChange={handleInputChange}
                                                             id="ownerName"
-                                                            placeholder="Devid Jhon"
+                                                            placeholder="owner name here..."
                                                         />
                                                     </div>
-                                                    {/* <input
-                type="text"
-                name="ownerName"
-                value={formData.ownerName}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 p-2"
-              /> */}
                                                 </div>
                                                 <div>
                                                     <label className="mb-3 block text-sm font-medium text-black dark:text-white">Phone Number</label>
                                                     <input
                                                         className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white dark:focus:border-primary"
                                                         type="text"
+                                                        disabled
                                                         name="phoneNumber"
                                                         value={formData.phoneNumber}
                                                         onChange={handleInputChange}
                                                         id="phoneNumber"
-                                                        placeholder="+990 3343 7865"
+                                                        placeholder="your phone number here..."
                                                     />
-                                                    {/* <input
-                type="number"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 p-2"
-                required
-              /> */}
                                                 </div>
                                                 <div>
                                                     <label className="mb-3 block text-sm font-medium text-black dark:text-white">Region</label>
-                                                    <input
+                                                    <select
                                                         className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white dark:focus:border-primary"
-                                                        type="text"
                                                         name="region"
                                                         value={formData.region}
                                                         onChange={handleInputChange}
                                                         id="region"
-                                                        placeholder="North India"
-                                                    />
-                                                    {/* <input
-                type="text"
-                name="region"
-                value={formData.region}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 p-2"
-              /> */}
+                                                        title='region'
+                                                    >
+                                                        <option value="" disabled>Select Region</option>
+                                                        <option value="North India">North India</option>
+                                                        <option value="South India">South India</option>
+                                                        <option value="East India">East India</option>
+                                                        <option value="West India">West India</option>
+                                                        <option value="Central India">Central India</option>
+                                                        <option value="Northeast India">Northeast India</option>
+                                                    </select>
                                                 </div>
+
                                             </div>
                                         </div>
 
                                         {/* Address Section */}
                                         <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
                                             <h2 className="font-medium text-black dark:text-white border-b border-stroke px-7 py-4 dark:border-strokedark">Address Information</h2>
-
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-7">
                                                 <div>
                                                     <label className="mb-3 block text-sm font-medium text-black dark:text-white">Street</label>
@@ -301,16 +283,8 @@ const UpdateProfile = () => {
                                                         name="address.street"
                                                         value={formData.address.street}
                                                         onChange={handleInputChange}
-                                                        placeholder="+990 3343 7865"
-                                                        defaultValue="+990 3343 7865"
+                                                        placeholder="street or shop here..."
                                                     />
-                                                    {/* <input
-                type="text"
-                name="address.street"
-                value={formData.address.street}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 p-2"
-              /> */}
                                                 </div>
                                                 <div>
                                                     <label className="mb-3 block text-sm font-medium text-black dark:text-white">City</label>
@@ -320,35 +294,23 @@ const UpdateProfile = () => {
                                                         name="address.city"
                                                         value={formData.address.city}
                                                         onChange={handleInputChange}
-                                                        placeholder="+990 3343 7865"
-                                                        defaultValue="+990 3343 7865"
+                                                        placeholder="city name here..."
                                                     />
-                                                    {/* <input
-                type="text"
-                name="address.city"
-                value={formData.address.city}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 p-2"
-              /> */}
                                                 </div>
                                                 <div>
-                                                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">State</label>
-                                                    <input
+                                                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">Region</label>
+                                                    <select
                                                         className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white dark:focus:border-primary"
-                                                        type="text"
-                                                        name="address.state"
+                                                        name="state"
                                                         value={formData.address.state}
                                                         onChange={handleInputChange}
-                                                        placeholder="+990 3343 7865"
-                                                        defaultValue="+990 3343 7865"
-                                                    />
-                                                    {/* <input
-                                                    type="text"
-                                                    name="address.state"
-                                                    value={formData.address.state}
-                                                    onChange={handleInputChange}
-                                                    className="mt-1 block w-full rounded-md border border-gray-300 p-2"
-                                                  /> */}
+                                                        id="state"
+                                                        title="state"
+                                                    >
+                                                        <option value="" disabled>Select state</option>
+                                                        <option value="Punjab">Punjab</option>
+                                                        <option value="Chandigarh">Chandigarh</option>
+                                                    </select>
                                                 </div>
                                                 <div>
                                                     <label className="mb-3 block text-sm font-medium text-black dark:text-white">Postal Code</label>
@@ -358,23 +320,15 @@ const UpdateProfile = () => {
                                                         name="address.postalCode"
                                                         value={formData.address.postalCode}
                                                         onChange={handleInputChange}
-                                                        placeholder="+990 3343 7865"
-                                                        defaultValue="+990 3343 7865"
+                                                        placeholder="postal code (140802) here..."
                                                     />
-                                                    {/* <input
-                                                   type="text"
-                                                   name="address.postalCode"
-                                                   value={formData.address.postalCode}
-                                                   onChange={handleInputChange}
-                                                   className="mt-1 block w-full rounded-md border border-gray-300 p-2"
-                                                 /> */}
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Business Section */}
                                         <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-                                            <h2 className="font-medium text-black dark:text-white border-b border-stroke px-7 py-4 dark:border-strokedark">Business Information</h2>
+                                            <h2 className="font-medium text-black dark:text-white border-b border-stroke px-7 py-4 dark:border-strokedark">Kitchen Information</h2>
 
                                             <div className="grid grid-cols-1  gap-6 p-7">
                                                 <div>
@@ -385,7 +339,7 @@ const UpdateProfile = () => {
                                                         name="slogan"
                                                         value={formData.slogan}
                                                         onChange={handleInputChange}
-                                                        placeholder="Slogan"
+                                                        placeholder="company slogan here..."
                                                     />
                                                 </div>
                                                 <div>
@@ -395,152 +349,111 @@ const UpdateProfile = () => {
                                                         name="description"
                                                         value={formData.description}
                                                         onChange={handleInputChange}
-                                                        placeholder="Description"
+                                                        placeholder="company description"
                                                     />
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Images Section */}
-                                        <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-                                            <h2 className="font-medium text-black dark:text-white border-b border-stroke px-7 py-4 dark:border-strokedark">Kitchen Information</h2>
-                                            <div className="space-y-6 p-7">
 
-                                                <div>
-                                                    <label className="mb-3 block text-sm font-medium text-black dark:text-white">Kitchen Images</label>
-                                                    <div className="grid grid-cols-3 gap-4 mt-2">
-                                                        {formData.kitchenImages.map((img, index) => (
-                                                            <img
-                                                                key={index}
-                                                                src={img}
-                                                                alt={`Kitchen ${index + 1}`}
-                                                                // width={100}
-                                                                // height={100}
-                                                                className="rounded"
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                    <div
-                                                        id="ImageFileUpload"
-                                                        className="relative mt-4 mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5"
-                                                    >
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={(e) => {/* Handle image upload */ }}
-                                                            className="absolute inset-0 z-50 m-0 h-full w-full cursor-pointer p-0 opacity-0 outline-none"
-                                                        />
-                                                        <div className="flex flex-col items-center justify-center space-y-3">
-                                                            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-stroke bg-white dark:border-strokedark dark:bg-boxdark">
-                                                                <svg
-                                                                    width="16"
-                                                                    height="16"
-                                                                    viewBox="0 0 16 16"
-                                                                    fill="none"
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                >
-                                                                    <path
-                                                                        fillRule="evenodd"
-                                                                        clipRule="evenodd"
-                                                                        d="M1.99967 9.33337C2.36786 9.33337 2.66634 9.63185 2.66634 10V12.6667C2.66634 12.8435 2.73658 13.0131 2.8616 13.1381C2.98663 13.2631 3.1562 13.3334 3.33301 13.3334H12.6663C12.8431 13.3334 13.0127 13.2631 13.1377 13.1381C13.2628 13.0131 13.333 12.8435 13.333 12.6667V10C13.333 9.63185 13.6315 9.33337 13.9997 9.33337C14.3679 9.33337 14.6663 9.63185 14.6663 10V12.6667C14.6663 13.1971 14.4556 13.7058 14.0806 14.0809C13.7055 14.456 13.1968 14.6667 12.6663 14.6667H3.33301C2.80257 14.6667 2.29387 14.456 1.91879 14.0809C1.54372 13.7058 1.33301 13.1971 1.33301 12.6667V10C1.33301 9.63185 1.63148 9.33337 1.99967 9.33337Z"
-                                                                        fill="#3C50E0"
-                                                                    />
-                                                                    <path
-                                                                        fillRule="evenodd"
-                                                                        clipRule="evenodd"
-                                                                        d="M7.5286 1.52864C7.78894 1.26829 8.21106 1.26829 8.4714 1.52864L11.8047 4.86197C12.0651 5.12232 12.0651 5.54443 11.8047 5.80478C11.5444 6.06513 11.1223 6.06513 10.8619 5.80478L8 2.94285L5.13807 5.80478C4.87772 6.06513 4.45561 6.06513 4.19526 5.80478C3.93491 5.54443 3.93491 5.12232 4.19526 4.86197L7.5286 1.52864Z"
-                                                                        fill="#3C50E0"
-                                                                    />
-                                                                    <path
-                                                                        fillRule="evenodd"
-                                                                        clipRule="evenodd"
-                                                                        d="M7.99967 1.33337C8.36786 1.33337 8.66634 1.63185 8.66634 2.00004V10C8.66634 10.3682 8.36786 10.6667 7.99967 10.6667C7.63148 10.6667 7.33301 10.3682 7.33301 10V2.00004C7.33301 1.63185 7.63148 1.33337 7.99967 1.33337Z"
-                                                                        fill="#3C50E0"
-                                                                    />
-                                                                </svg>
-                                                            </span>
-                                                            <p>
-                                                                <span className="text-primary">Click to upload</span> or
-                                                                drag and drop
-                                                            </p>
-                                                            <p className="mt-1.5">SVG, PNG, JPG or GIF</p>
-                                                            <p>(max, 800 X 800px)</p>
-                                                        </div>
-                                                    </div>
-                                                    {/* <input
-                                                     type="file"
-                                                     multiple
-                                                     accept="image/*"
-                                                     // onChange={(e) => {}}
-                                                     className="mt-4 block w-full"
-                                                   /> */}
-                                                </div>
-                                            </div>
-                                        </div>
-
-
-
-                                        {/* <div className="flex justify-end">
-                                        <button
-                                            type="submit"
-                                            className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
-                                        >
-                                            Save Changes
-                                        </button>
-                                    </div> */}
                                     </div>
                                 </div>
                             </div>
+                            {/* Images Section */}
                             <div className="col-span-5 xl:col-span-2">
                                 <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
                                     <div className="border-b border-stroke px-7 py-4 dark:border-strokedark">
-                                        <h3 className="font-medium text-black dark:text-white">
-                                            Your Photo
-                                        </h3>
+                                        <h3 className="font-medium text-black dark:text-white">Profile Photo</h3>
                                     </div>
                                     <div className="p-7">
-                                        <form action="#">
+                                        <form>
                                             <div className="mb-4 flex items-center gap-3">
                                                 <div className="h-14 w-14 rounded-full">
-                                                    {formData.profilePhoto && (
-                                                        <img
-                                                            src={formData.profilePhoto}
-                                                            alt="Profile"
-                                                            //   width={100}
-                                                            //   height={100}
-                                                            className=" rounded-full"
-                                                        />
+                                                    {formData.kitchenProfilePhoto && (
+                                                        <img src={formData.kitchenProfilePhoto} alt="Profile" className="rounded-full" />
                                                     )}
-                                                    {/* <Image
-                            src={"/images/user/user-03.png"}
-                            width={55}
-                            height={55}
-                            alt="User"
-                          /> */}
                                                 </div>
                                                 <div>
-                                                    <span className="mb-1.5 text-black dark:text-white">
-                                                        Edit your photo
-                                                    </span>
+                                                    <span className="mb-1.5 text-black dark:text-white">Edit profile photo</span>
                                                     <span className="flex gap-2.5">
-                                                        <button className="text-sm hover:text-primary">
-                                                            Delete
-                                                        </button>
-                                                        <button className="text-sm hover:text-primary">
-                                                            Update
-                                                        </button>
+                                                        <button className="text-sm hover:text-primary">Delete</button>
+                                                        <button className="text-sm hover:text-primary">Update</button>
                                                     </span>
                                                 </div>
                                             </div>
 
+                                            <div id="ProfileImageUpload" className="relative mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    name='kitchenProfilePhoto'
+                                                    onChange={handleProfilePhotoChange}
+                                                    className="absolute inset-0 z-50 m-0 h-full w-full cursor-pointer p-0 opacity-0 outline-none"
+                                                />
+                                                <div className="flex flex-col items-center justify-center space-y-3">
+                                                    <span className="flex h-10 w-10 items-center justify-center rounded-full border border-stroke bg-white dark:border-strokedark dark:bg-boxdark">
+                                                        <svg
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 16 16"
+                                                            fill="none"
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                        >
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                clipRule="evenodd"
+                                                                d="M1.99967 9.33337C2.36786 9.33337 2.66634 9.63185 2.66634 10V12.6667C2.66634 12.8435 2.73658 13.0131 2.8616 13.1381C2.98663 13.2631 3.1562 13.3334 3.33301 13.3334H12.6663C12.8431 13.3334 13.0127 13.2631 13.1377 13.1381C13.2628 13.0131 13.333 12.8435 13.333 12.6667V10C13.333 9.63185 13.6315 9.33337 13.9997 9.33337C14.3679 9.33337 14.6663 9.63185 14.6663 10V12.6667C14.6663 13.1971 14.4556 13.7058 14.0806 14.0809C13.7055 14.456 13.1968 14.6667 12.6663 14.6667H3.33301C2.80257 14.6667 2.29387 14.456 1.91879 14.0809C1.54372 13.7058 1.33301 13.1971 1.33301 12.6667V10C1.33301 9.63185 1.63148 9.33337 1.99967 9.33337Z"
+                                                                fill="#3C50E0"
+                                                            />
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                clipRule="evenodd"
+                                                                d="M7.5286 1.52864C7.78894 1.26829 8.21106 1.26829 8.4714 1.52864L11.8047 4.86197C12.0651 5.12232 12.0651 5.54443 11.8047 5.80478C11.5444 6.06513 11.1223 6.06513 10.8619 5.80478L8 2.94285L5.13807 5.80478C4.87772 6.06513 4.45561 6.06513 4.19526 5.80478C3.93491 5.54443 3.93491 5.12232 4.19526 4.86197L7.5286 1.52864Z"
+                                                                fill="#3C50E0"
+                                                            />
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                clipRule="evenodd"
+                                                                d="M7.99967 1.33337C8.36786 1.33337 8.66634 1.63185 8.66634 2.00004V10C8.66634 10.3682 8.36786 10.6667 7.99967 10.6667C7.63148 10.6667 7.33301 10.3682 7.33301 10V2.00004C7.33301 1.63185 7.63148 1.33337 7.99967 1.33337Z"
+                                                                fill="#3C50E0"
+                                                            />
+                                                        </svg>
+                                                    </span>
+                                                    <p><span className="text-primary">Click to upload</span> or drag and drop</p>
+                                                    <p className="mt-1.5">SVG, PNG, JPG or GIF</p>
+                                                    <p>(max, 800 X 800px)</p>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div className="rounded-sm border mt-6 border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+                                    <h2 className="font-medium text-black dark:text-white border-b border-stroke px-7 py-4 dark:border-strokedark">Kitchen Images</h2>
+                                    <div className="space-y-6 p-7">
+
+                                        <div>
+                                            <label className="mb-3 block text-sm font-medium text-black dark:text-white">Kitchen Images</label>
+                                            <div className="grid grid-cols-3 gap-4 mt-2">
+                                                {formData.kitchenImages?.map((img, index) => (
+                                                    <img
+                                                        key={index}
+                                                        src={img} // This now refers to the object URL
+                                                        alt={`Kitchen ${index + 1}`}
+                                                        className="rounded"
+                                                    />
+                                                ))}
+                                            </div>
+
                                             <div
-                                                id="ProfileImageUpload"
-                                                className="relative mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5"
+                                                id="ImageFileUpload"
+                                                className="relative mt-4 mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5"
                                             >
                                                 <input
                                                     type="file"
                                                     accept="image/*"
-                                                    onChange={(e) => {/* Handle image upload */ }}
+                                                    onChange={handleKitchenImagesChange}
+                                                    name='kitchenImages'
+                                                    multiple
                                                     className="absolute inset-0 z-50 m-0 h-full w-full cursor-pointer p-0 opacity-0 outline-none"
                                                 />
                                                 <div className="flex flex-col items-center justify-center space-y-3">
@@ -580,22 +493,7 @@ const UpdateProfile = () => {
                                                     <p>(max, 800 X 800px)</p>
                                                 </div>
                                             </div>
-
-                                            {/* <div className="flex justify-end gap-4.5">
-                        <button
-                          className="flex justify-center rounded border border-stroke px-6 py-2 font-medium text-black hover:shadow-1 dark:border-strokedark dark:text-white"
-                          type="submit"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          className="flex justify-center rounded bg-primary px-6 py-2 font-medium text-gray hover:bg-opacity-90"
-                          type="submit"
-                        >
-                          Save
-                        </button>
-                      </div> */}
-                                        </form>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
