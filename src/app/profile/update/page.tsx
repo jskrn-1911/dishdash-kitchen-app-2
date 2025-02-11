@@ -1,37 +1,53 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import DefaultLayout from '@/components/Layouts/DefaultLayout';
 import Breadcrumb from '@/components/Breadcrumbs/Breadcrumb';
 import { useUser } from '@/contexts/AppContext';
+import { useDropzone } from 'react-dropzone';
+import axios from 'axios';
 
+interface Address {
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+}
+
+interface kitchen {
+    phoneNumber: number;
+    name: string;
+    ownerName: string;
+    region: string;
+    address: Address;
+    slogan: string;
+    description: string;
+    kitchenProfilePhoto: string;
+    kitchenImages: string[];
+}
 
 const UpdateProfile = () => {
     const { kitchenData, setKitchenData, token } = useUser();
     const phoneNumber = kitchenData?.phoneNumber;
-    const [formData, setFormData] = useState({
+    const [data, setData] = useState<kitchen | null>(kitchenData); // Store original data
+    const [formData, setFormData] = useState<kitchen>({
         phoneNumber: phoneNumber,
-        name: '',
-        ownerName: '',
-        region: '',
-        address: {
-            street: '',
-            city: '',
-            state: '',
-            postalCode: '',
-            country: 'India',
-        },
-        kitchenProfilePhoto: '',
+        name: "",
+        ownerName: "",
+        region: "",
+        address: { street: "", city: "", state: "", postalCode: "", country: "India" },
+        kitchenProfilePhoto: "",
         kitchenImages: [],
-        slogan: '',
-        description: '',
+        slogan: "",
+        description: "",
     });
-    const [errorMessage, setErrorMessage] = useState("");
-    const [loading, setLoading] = useState(true);
-
-    const [originalData, setOriginalData] = useState(kitchenData); // Store original data
-    const [isChanged, setIsChanged] = useState(false); // Track if form has changed
+    const [profilePreview, setProfilePreview] = useState<string | null>(null);
+    const [kitchenImagePreviews, setKitchenImagePreviews] = useState<string[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [errorMessage, setErrorMessage] = useState<string>("");
+    const [isChanged, setIsChanged] = useState(false);
 
     useEffect(() => {
         if (phoneNumber) {
@@ -50,7 +66,7 @@ const UpdateProfile = () => {
                     if (response.ok) {
                         // setDriver(data.driver);
                         setFormData(data.kitchen);
-                        setOriginalData(data.kitchen);
+                        setData(data.kitchen);
                         console.log('Kitchen details fetched:', data.kitchen);
                     } else {
                         console.error('Error fetching Kitchen details:', data.message);
@@ -68,61 +84,109 @@ const UpdateProfile = () => {
         }
     }, [phoneNumber]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const { name, value, type } = e.target;
-        const checked = (e.target as HTMLInputElement).checked;
-
-        setFormData(prev => {
-            if (name.includes('.')) {
-                const [parent, child] = name.split('.') as [keyof typeof prev, string];
-
-                // Ensure parent is an object before spreading
-                if (typeof prev[parent] === 'object' && prev[parent] !== null) {
-                    return {
-                        ...prev,
-                        [parent]: {
-                            ...prev[parent] as Record<string, any>, // Explicitly tell TypeScript it's an object
-                            [child]: value
-                        }
-                    };
-                }
-                return prev; // Return previous state if parent is not an object
-            } else {
-                return {
-                    ...prev,
-                    [name]: type === 'checkbox' ? checked : value
-                };
-            }
-        });
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({
+            ...prev!,
+            [name]: value,
+        }));
     };
 
-    useEffect(() => {
-        if (originalData) {
-            setIsChanged(JSON.stringify(originalData) !== JSON.stringify(formData));
-        }
-    }, [formData, originalData])
+    const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({
+            ...prev!,
+            address: { ...prev!.address, [name]: value },
+        }));
+    };
 
-    const handleSubmit = async (e: any) => {
+    const { getRootProps: getProfileProps, getInputProps: getProfileInputProps } = useDropzone({
+        accept: { "image/*": [] },
+        onDrop: (acceptedFiles) => {
+            const file = acceptedFiles[0];
+            setProfilePreview(URL.createObjectURL(file));
+            setFormData((prev: any) => ({
+                ...prev!,
+                kitchenProfilePhoto: file,
+            }));
+        },
+    });
+
+    const { getRootProps: getKitchenProps, getInputProps: getKitchenInputProps } = useDropzone({
+        accept: { "image/*": [] },
+        multiple: true,
+        onDrop: (acceptedFiles) => {
+            const newPreviews = acceptedFiles.map((file) => URL.createObjectURL(file));
+            setKitchenImagePreviews((prev) => [...prev, ...newPreviews]);
+            setFormData((prev: any) => ({
+                ...prev!,
+                kitchenImages: [...prev!.kitchenImages, ...acceptedFiles],
+            }));
+        },
+    });
+
+
+
+    useEffect(() => {
+        if (data) {
+            setIsChanged(JSON.stringify(data) !== JSON.stringify(formData));
+
+            if (data.kitchenImages && data.kitchenImages.length > 0) {
+                const existingPreviews = data.kitchenImages.map((image) => `${process.env.NEXT_PUBLIC_API_BASE_URL}/path/to/images/${image}`);
+                setKitchenImagePreviews(existingPreviews);
+                console.log("Kithcen images",data.kitchenImages)
+            }
+        }
+    }, [data, formData]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('Form Data:', formData);
+        setLoading(true);
+
+        if (JSON.stringify(data) === JSON.stringify(formData)) {
+            console.log("No changes detected.");
+            return;
+        }
+
+        const form = new FormData();
+        form.append("name", formData.name);
+        form.append("ownerName", formData.ownerName);
+        form.append("region", formData.region);
+        form.append("slogan", formData.slogan);
+        form.append("description", formData.description);
+
+        // Append Address
+        Object.entries(formData.address).forEach(([key, value]) => form.append(`address[${key}]`, value));
+
+        // Append Images
+        if (formData.kitchenProfilePhoto instanceof File) {
+            form.append("kitchenProfilePhoto", formData.kitchenProfilePhoto);
+        }
+        formData.kitchenImages.forEach((image: any) => {
+            if (image instanceof File) {
+                form.append("kitchenImages", image);
+            }
+        });
+
+
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/update-profile?phoneNumber=${phoneNumber}`, {
-                method: "PUT",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(formData),
-            })
-            const data = await response.json();
-            if (!response.ok) {
+            const response = await axios.put(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/update-profile?phoneNumber=${phoneNumber}`,
+                form,
+                {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+                
+            if (response.status === 200) {
+                setKitchenData(response.kitchen)
+                console.log("kitchen profile updated successfully!", response.message, response)
+            } else {
                 setErrorMessage("Error updating profile!")
-                console.error("Failed to update kitchen profile", data.message)
+                console.error("Failed to update kitchen profile", response.message)
             }
-            if (response.ok) {
-                setKitchenData(data.kitchen)
-                console.log("kitchen profile updated successfully!", data.message, data)
-            }
+
         } catch (error) {
             console.error('Error fetching Kitchen details:', error);
             setErrorMessage("Error fetching Kitchen Details");
@@ -130,27 +194,91 @@ const UpdateProfile = () => {
             // setErrorMessage("");
             setLoading(false);
         }
-    };
+    }
 
-    const handleProfilePhotoChange = (e:any) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setFormData((prev) => ({ ...prev, kitchenProfilePhoto: file }));
-        }
-    };
+    // const handleSubmit = async (e: any) => {
+    //     e.preventDefault();
+    //     console.log('Form Data:', formData);
+    //     try {
+    //         const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/update-profile?phoneNumber=${phoneNumber}`, {
+    //             method: "PUT",
+    //             headers: {
+    //                 "Authorization": `Bearer ${token}`,
+    //                 "Content-Type": "application/json",
+    //             },
+    //             body: JSON.stringify(formData),
+    //         })
+    //         const data = await response.json();
+    //         if (!response.ok) {
+    //             setErrorMessage("Error updating profile!")
+    //             console.error("Failed to update kitchen profile", data.message)
+    //         }
+    //         if (response.ok) {
+    //             setKitchenData(data.kitchen)
+    //             console.log("kitchen profile updated successfully!", data.message, data)
+    //         }
+    //     } catch (error) {
+    //         console.error('Error fetching Kitchen details:', error);
+    //         setErrorMessage("Error fetching Kitchen Details");
+    //     } finally {
+    //         // setErrorMessage("");
+    //         setLoading(false);
+    //     }
+    // };
 
-    const handleKitchenImagesChange = (e: any) => {
-        const files = Array.from(e.target.files || []);
-        if (formData.kitchenImages.length + files.length > 20) {
-            alert("You can only upload up to 20 images");
-            return;
-        }
-        setFormData((prev: any) => ({
-            ...prev,
-            kitchenImages: [...prev.kitchenImages, ...files],
-        }));
-    };
+    // const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    //     const { name, value, type } = e.target;
+    //     const checked = (e.target as HTMLInputElement).checked;
 
+    //     setFormData(prev => {
+    //         if (name.includes('.')) {
+    //             const [parent, child] = name.split('.') as [keyof typeof prev, string];
+
+    //             // Ensure parent is an object before spreading
+    //             if (typeof prev[parent] === 'object' && prev[parent] !== null) {
+    //                 return {
+    //                     ...prev,
+    //                     [parent]: {
+    //                         ...prev[parent] as Record<string, any>, // Explicitly tell TypeScript it's an object
+    //                         [child]: value
+    //                     }
+    //                 };
+    //             }
+    //             return prev; // Return previous state if parent is not an object
+    //         } else {
+    //             return {
+    //                 ...prev,
+    //                 [name]: type === 'checkbox' ? checked : value
+    //             };
+    //         }
+    //     });
+    // };
+
+    // const handleKitchenImagesChange = (e: any) => {
+    //     const files = Array.from(e.target.files || []);
+
+    //     if (kitchenImages.length + files.length > 10) {
+    //         alert("You can only upload up to 10 images");
+    //         return;
+    //     }
+
+    //     const newFiles = files.map((file) =>
+    //         Object.assign(file, { preview: URL.createObjectURL(file) })
+    //     );
+
+    //     setKitchenImages((prevFiles) => [...prevFiles, ...newFiles]);
+    // };
+
+    // useEffect(() => {
+    //     return () => kitchenImages.forEach((file) => URL.revokeObjectURL(file.preview));
+    // }, [kitchenImages]);
+
+    // const handleProfilePhotoChange = (e: any) => {
+    //     const file = e.target.files?.[0];
+    //     if (file) {
+    //         setFormData((prev) => ({ ...prev, kitchenProfilePhoto: file }));
+    //     }
+    // };
 
     return (
         <DefaultLayout>
@@ -164,12 +292,12 @@ const UpdateProfile = () => {
                         </div>
                         <div className="justify-end">
                             <button
-                                disabled={!isChanged}
+                                disabled={!isChanged || loading}
                                 onClick={handleSubmit}
                                 type="submit"
                                 className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700"
                             >
-                                Save Changes
+                                {loading ? "updating" : "Save Changes"}
                             </button>
                         </div>
                     </div>
@@ -191,7 +319,7 @@ const UpdateProfile = () => {
                                                         type="text"
                                                         name="name"
                                                         value={formData.name}
-                                                        onChange={handleInputChange}
+                                                        onChange={handleChange}
                                                         id="name"
                                                         placeholder="kitchen name here..."
                                                     />
@@ -229,7 +357,7 @@ const UpdateProfile = () => {
                                                             type="text"
                                                             name="ownerName"
                                                             value={formData.ownerName}
-                                                            onChange={handleInputChange}
+                                                            onChange={handleChange}
                                                             id="ownerName"
                                                             placeholder="owner name here..."
                                                         />
@@ -243,7 +371,7 @@ const UpdateProfile = () => {
                                                         disabled
                                                         name="phoneNumber"
                                                         value={formData.phoneNumber}
-                                                        onChange={handleInputChange}
+                                                        // onChange={handleChange}
                                                         id="phoneNumber"
                                                         placeholder="your phone number here..."
                                                     />
@@ -254,7 +382,7 @@ const UpdateProfile = () => {
                                                         className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white dark:focus:border-primary"
                                                         name="region"
                                                         value={formData.region}
-                                                        onChange={handleInputChange}
+                                                        onChange={handleChange}
                                                         id="region"
                                                         title='region'
                                                     >
@@ -267,7 +395,6 @@ const UpdateProfile = () => {
                                                         <option value="Northeast India">Northeast India</option>
                                                     </select>
                                                 </div>
-
                                             </div>
                                         </div>
 
@@ -282,7 +409,7 @@ const UpdateProfile = () => {
                                                         type="text"
                                                         name="address.street"
                                                         value={formData.address.street}
-                                                        onChange={handleInputChange}
+                                                        onChange={handleAddressChange}
                                                         placeholder="street or shop here..."
                                                     />
                                                 </div>
@@ -293,7 +420,7 @@ const UpdateProfile = () => {
                                                         type="text"
                                                         name="address.city"
                                                         value={formData.address.city}
-                                                        onChange={handleInputChange}
+                                                        onChange={handleAddressChange}
                                                         placeholder="city name here..."
                                                     />
                                                 </div>
@@ -303,7 +430,7 @@ const UpdateProfile = () => {
                                                         className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white dark:focus:border-primary"
                                                         name="state"
                                                         value={formData.address.state}
-                                                        onChange={handleInputChange}
+                                                        onChange={handleAddressChange}
                                                         id="state"
                                                         title="state"
                                                     >
@@ -319,7 +446,7 @@ const UpdateProfile = () => {
                                                         type="text"
                                                         name="address.postalCode"
                                                         value={formData.address.postalCode}
-                                                        onChange={handleInputChange}
+                                                        onChange={handleAddressChange}
                                                         placeholder="postal code (140802) here..."
                                                     />
                                                 </div>
@@ -338,7 +465,7 @@ const UpdateProfile = () => {
                                                         type="text"
                                                         name="slogan"
                                                         value={formData.slogan}
-                                                        onChange={handleInputChange}
+                                                        onChange={handleChange}
                                                         placeholder="company slogan here..."
                                                     />
                                                 </div>
@@ -348,14 +475,12 @@ const UpdateProfile = () => {
                                                         className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white dark:focus:border-primary"
                                                         name="description"
                                                         value={formData.description}
-                                                        onChange={handleInputChange}
+                                                        onChange={handleChange}
                                                         placeholder="company description"
                                                     />
                                                 </div>
                                             </div>
                                         </div>
-
-
                                     </div>
                                 </div>
                             </div>
@@ -369,9 +494,8 @@ const UpdateProfile = () => {
                                         <form>
                                             <div className="mb-4 flex items-center gap-3">
                                                 <div className="h-14 w-14 rounded-full">
-                                                    {formData.kitchenProfilePhoto && (
-                                                        <img src={formData.kitchenProfilePhoto} alt="Profile" className="rounded-full" />
-                                                    )}
+                                                    {/* {profilePreview ? <img src={profilePreview} alt="Profile Preview" className="preview rounded-full h-[125px] w-[125px]" /> : <img src={formData?.kitchenProfilePhoto} alt="Profile Preview" className="preview rounded-full h-[125px] w-[125px]" />} */}
+                                                    <img src={formData?.kitchenProfilePhoto} alt="Profile Preview" className="preview rounded-full h-[125px] w-[125px]" />
                                                 </div>
                                                 <div>
                                                     <span className="mb-1.5 text-black dark:text-white">Edit profile photo</span>
@@ -382,12 +506,11 @@ const UpdateProfile = () => {
                                                 </div>
                                             </div>
 
-                                            <div id="ProfileImageUpload" className="relative mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5">
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    name='kitchenProfilePhoto'
-                                                    onChange={handleProfilePhotoChange}
+                                            <div
+                                                {...getProfileProps()}
+                                                id="ProfileImageUpload"
+                                                className="relative mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5">
+                                                <input {...getProfileInputProps()}
                                                     className="absolute inset-0 z-50 m-0 h-full w-full cursor-pointer p-0 opacity-0 outline-none"
                                                 />
                                                 <div className="flex flex-col items-center justify-center space-y-3">
@@ -434,26 +557,33 @@ const UpdateProfile = () => {
                                         <div>
                                             <label className="mb-3 block text-sm font-medium text-black dark:text-white">Kitchen Images</label>
                                             <div className="grid grid-cols-3 gap-4 mt-2">
-                                                {formData.kitchenImages?.map((img, index) => (
-                                                    <img
-                                                        key={index}
-                                                        src={img} // This now refers to the object URL
-                                                        alt={`Kitchen ${index + 1}`}
-                                                        className="rounded"
-                                                    />
+                                                {/* {kitchenImagePreviews.map((src, index) => (
+                                                    // <Image
+                                                    //     key={index}
+                                                    //     src={src}
+                                                    //     alt="Kitchen Preview"
+                                                    //     width={150}
+                                                    //     height={150}
+                                                    //     className="rounded"
+                                                    // />
+                                                    <img src={src} alt="Kitchen Preview" key={index} className="preview rounded" />
+                                                ))} */}
+
+                                                {/* Display preview images that the user has uploaded */}
+                                                {formData.kitchenImages.map((image, index) => (
+                                                    <img src={image} alt={`Uploaded Kitchen Image ${index}`} key={index} className="preview rounded h-[150px] w-[150px]" />
+
                                                 ))}
+
                                             </div>
 
                                             <div
                                                 id="ImageFileUpload"
-                                                className="relative mt-4 mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5"
+                                                className={`relative mt-4 mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5 `}
+                                                {...getKitchenProps()}
                                             >
                                                 <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={handleKitchenImagesChange}
-                                                    name='kitchenImages'
-                                                    multiple
+                                                    {...getKitchenInputProps()}
                                                     className="absolute inset-0 z-50 m-0 h-full w-full cursor-pointer p-0 opacity-0 outline-none"
                                                 />
                                                 <div className="flex flex-col items-center justify-center space-y-3">
