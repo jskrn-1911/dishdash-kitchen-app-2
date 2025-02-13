@@ -24,7 +24,7 @@ interface kitchen {
     address: Address;
     slogan: string;
     description: string;
-    kitchenProfilePhoto: string;
+    kitchenProfilePhoto: string | File | null;
     kitchenImages: string[];
 }
 
@@ -67,6 +67,9 @@ const UpdateProfile = () => {
                         // setDriver(data.driver);
                         setFormData(data.kitchen);
                         setData(data.kitchen);
+                        if (data.kitchen.kitchenProfilePhoto && typeof data.kitchen.kitchenProfilePhoto === 'string') {
+                            setProfilePreview(data.kitchen.kitchenProfilePhoto);
+                        }
                         console.log('Kitchen details fetched:', data.kitchen);
                     } else {
                         console.error('Error fetching Kitchen details:', data.message);
@@ -84,7 +87,7 @@ const UpdateProfile = () => {
         }
     }, [phoneNumber]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
             ...prev!,
@@ -92,7 +95,7 @@ const UpdateProfile = () => {
         }));
     };
 
-    const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
             ...prev!,
@@ -100,15 +103,17 @@ const UpdateProfile = () => {
         }));
     };
 
-    const { getRootProps: getProfileProps, getInputProps: getProfileInputProps } = useDropzone({
+    const { getRootProps, getInputProps } = useDropzone({
         accept: { "image/*": [] },
         onDrop: (acceptedFiles) => {
-            const file = acceptedFiles[0];
-            setProfilePreview(URL.createObjectURL(file));
-            setFormData((prev: any) => ({
-                ...prev!,
-                kitchenProfilePhoto: file,
-            }));
+            if (acceptedFiles.length > 0) {
+                const file = acceptedFiles[0];
+                setProfilePreview(URL.createObjectURL(file));
+                setFormData((prev) => ({
+                    ...prev,
+                    kitchenProfilePhoto: file, // Ensure this is a File object
+                }));
+            }
         },
     });
 
@@ -125,16 +130,19 @@ const UpdateProfile = () => {
         },
     });
 
-
-
     useEffect(() => {
         if (data) {
             setIsChanged(JSON.stringify(data) !== JSON.stringify(formData));
 
+            if (data.kitchenProfilePhoto) {
+                setProfilePreview(`${process.env.NEXT_PUBLIC_API_BASE_URL}/path/to/images/${data.kitchenProfilePhoto}`);
+                console.log("Kitchen profile image", data.kitchenProfilePhoto)
+
+            }
             if (data.kitchenImages && data.kitchenImages.length > 0) {
                 const existingPreviews = data.kitchenImages.map((image) => `${process.env.NEXT_PUBLIC_API_BASE_URL}/path/to/images/${image}`);
                 setKitchenImagePreviews(existingPreviews);
-                console.log("Kithcen images",data.kitchenImages)
+                console.log("Kitchen images", data.kitchenImages)
             }
         }
     }, [data, formData]);
@@ -155,21 +163,21 @@ const UpdateProfile = () => {
         form.append("slogan", formData.slogan);
         form.append("description", formData.description);
 
-        // Append Address
-        Object.entries(formData.address).forEach(([key, value]) => form.append(`address[${key}]`, value));
-
-        // Append Images
         if (formData.kitchenProfilePhoto instanceof File) {
             form.append("kitchenProfilePhoto", formData.kitchenProfilePhoto);
+            console.log(formData.kitchenProfilePhoto)
         }
+
+        Object.entries(formData.address).forEach(([key, value]) => form.append(`address[${key}]`, value));
+
         formData.kitchenImages.forEach((image: any) => {
             if (image instanceof File) {
                 form.append("kitchenImages", image);
             }
         });
 
-
         try {
+            console.log("form to send : ", form)
             const response = await axios.put(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/update-profile?phoneNumber=${phoneNumber}`,
                 form,
                 {
@@ -178,13 +186,16 @@ const UpdateProfile = () => {
                         "Authorization": `Bearer ${token}`,
                     },
                 });
-                
+
             if (response.status === 200) {
-                setKitchenData(response.kitchen)
-                console.log("kitchen profile updated successfully!", response.message, response)
+                setKitchenData(response.data.kitchen)
+                if (response.data.kitchen.kitchenProfilePhoto) {
+                    setProfilePreview(response.data.kitchen.kitchenProfilePhoto);
+                }
+                console.log("kitchen profile updated successfully!", response.data, response)
             } else {
                 setErrorMessage("Error updating profile!")
-                console.error("Failed to update kitchen profile", response.message)
+                console.error("Failed to update kitchen profile", response.data.message)
             }
 
         } catch (error) {
@@ -195,90 +206,6 @@ const UpdateProfile = () => {
             setLoading(false);
         }
     }
-
-    // const handleSubmit = async (e: any) => {
-    //     e.preventDefault();
-    //     console.log('Form Data:', formData);
-    //     try {
-    //         const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/update-profile?phoneNumber=${phoneNumber}`, {
-    //             method: "PUT",
-    //             headers: {
-    //                 "Authorization": `Bearer ${token}`,
-    //                 "Content-Type": "application/json",
-    //             },
-    //             body: JSON.stringify(formData),
-    //         })
-    //         const data = await response.json();
-    //         if (!response.ok) {
-    //             setErrorMessage("Error updating profile!")
-    //             console.error("Failed to update kitchen profile", data.message)
-    //         }
-    //         if (response.ok) {
-    //             setKitchenData(data.kitchen)
-    //             console.log("kitchen profile updated successfully!", data.message, data)
-    //         }
-    //     } catch (error) {
-    //         console.error('Error fetching Kitchen details:', error);
-    //         setErrorMessage("Error fetching Kitchen Details");
-    //     } finally {
-    //         // setErrorMessage("");
-    //         setLoading(false);
-    //     }
-    // };
-
-    // const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    //     const { name, value, type } = e.target;
-    //     const checked = (e.target as HTMLInputElement).checked;
-
-    //     setFormData(prev => {
-    //         if (name.includes('.')) {
-    //             const [parent, child] = name.split('.') as [keyof typeof prev, string];
-
-    //             // Ensure parent is an object before spreading
-    //             if (typeof prev[parent] === 'object' && prev[parent] !== null) {
-    //                 return {
-    //                     ...prev,
-    //                     [parent]: {
-    //                         ...prev[parent] as Record<string, any>, // Explicitly tell TypeScript it's an object
-    //                         [child]: value
-    //                     }
-    //                 };
-    //             }
-    //             return prev; // Return previous state if parent is not an object
-    //         } else {
-    //             return {
-    //                 ...prev,
-    //                 [name]: type === 'checkbox' ? checked : value
-    //             };
-    //         }
-    //     });
-    // };
-
-    // const handleKitchenImagesChange = (e: any) => {
-    //     const files = Array.from(e.target.files || []);
-
-    //     if (kitchenImages.length + files.length > 10) {
-    //         alert("You can only upload up to 10 images");
-    //         return;
-    //     }
-
-    //     const newFiles = files.map((file) =>
-    //         Object.assign(file, { preview: URL.createObjectURL(file) })
-    //     );
-
-    //     setKitchenImages((prevFiles) => [...prevFiles, ...newFiles]);
-    // };
-
-    // useEffect(() => {
-    //     return () => kitchenImages.forEach((file) => URL.revokeObjectURL(file.preview));
-    // }, [kitchenImages]);
-
-    // const handleProfilePhotoChange = (e: any) => {
-    //     const file = e.target.files?.[0];
-    //     if (file) {
-    //         setFormData((prev) => ({ ...prev, kitchenProfilePhoto: file }));
-    //     }
-    // };
 
     return (
         <DefaultLayout>
@@ -493,10 +420,18 @@ const UpdateProfile = () => {
                                     <div className="p-7">
                                         <form>
                                             <div className="mb-4 flex items-center gap-3">
-                                                <div className="h-14 w-14 rounded-full">
-                                                    {/* {profilePreview ? <img src={profilePreview} alt="Profile Preview" className="preview rounded-full h-[125px] w-[125px]" /> : <img src={formData?.kitchenProfilePhoto} alt="Profile Preview" className="preview rounded-full h-[125px] w-[125px]" />} */}
-                                                    <img src={formData?.kitchenProfilePhoto} alt="Profile Preview" className="preview rounded-full h-[125px] w-[125px]" />
+                                                <div className="h-32 w-32 rounded-full overflow-hidden">
+                                                    <img
+                                                        src={
+                                                            formData.kitchenProfilePhoto instanceof File
+                                                                ? URL.createObjectURL(formData.kitchenProfilePhoto) 
+                                                                : formData.kitchenProfilePhoto || profilePreview || undefined
+                                                        }
+                                                        alt="Profile Preview"
+                                                        className="object-cover h-full w-full"
+                                                    />
                                                 </div>
+
                                                 <div>
                                                     <span className="mb-1.5 text-black dark:text-white">Edit profile photo</span>
                                                     <span className="flex gap-2.5">
@@ -507,10 +442,10 @@ const UpdateProfile = () => {
                                             </div>
 
                                             <div
-                                                {...getProfileProps()}
+                                                {...getRootProps()}
                                                 id="ProfileImageUpload"
                                                 className="relative mb-5.5 block w-full cursor-pointer appearance-none rounded border border-dashed border-primary bg-gray px-4 py-4 dark:bg-meta-4 sm:py-7.5">
-                                                <input {...getProfileInputProps()}
+                                                <input {...getInputProps()}
                                                     className="absolute inset-0 z-50 m-0 h-full w-full cursor-pointer p-0 opacity-0 outline-none"
                                                 />
                                                 <div className="flex flex-col items-center justify-center space-y-3">
@@ -557,18 +492,6 @@ const UpdateProfile = () => {
                                         <div>
                                             <label className="mb-3 block text-sm font-medium text-black dark:text-white">Kitchen Images</label>
                                             <div className="grid grid-cols-3 gap-4 mt-2">
-                                                {/* {kitchenImagePreviews.map((src, index) => (
-                                                    // <Image
-                                                    //     key={index}
-                                                    //     src={src}
-                                                    //     alt="Kitchen Preview"
-                                                    //     width={150}
-                                                    //     height={150}
-                                                    //     className="rounded"
-                                                    // />
-                                                    <img src={src} alt="Kitchen Preview" key={index} className="preview rounded" />
-                                                ))} */}
-
                                                 {/* Display preview images that the user has uploaded */}
                                                 {formData.kitchenImages.map((image, index) => (
                                                     <img src={image} alt={`Uploaded Kitchen Image ${index}`} key={index} className="preview rounded h-[150px] w-[150px]" />
@@ -636,4 +559,3 @@ const UpdateProfile = () => {
 };
 
 export default UpdateProfile;
-

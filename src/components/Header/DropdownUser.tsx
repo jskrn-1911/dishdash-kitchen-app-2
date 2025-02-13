@@ -12,7 +12,7 @@ const DropdownUser = () => {
     <ClickOutside onClick={() => setDropdownOpen(false)} className="relative">
       <Link
         onClick={(e) => {
-          e.stopPropagation(); 
+          e.stopPropagation();
           setDropdownOpen(!dropdownOpen);
         }}
         className="flex items-center gap-4"
@@ -29,7 +29,7 @@ const DropdownUser = () => {
           <Image
             width={48}
             height={48}
-            src={kitchenData?.profilePhoto ? kitchenData?.profilePhoto : "/images/defaults/default-profile.jpg"}
+            src={kitchenData?.kitchenProfilePhoto || "/images/defaults/default-profile.jpg"}
             className="w-full h-full object-cover"
             alt="User"
           />
