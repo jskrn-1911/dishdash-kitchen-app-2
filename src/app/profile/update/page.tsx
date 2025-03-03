@@ -207,6 +207,44 @@ const UpdateProfile = () => {
         }
     }
 
+    const deleteProfilePicture = async () => {
+        try {
+            const response = await axios.delete(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/delete-profile-picture?phoneNumber=${phoneNumber}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            })
+
+            if (response.status === 200) {
+                setProfilePreview(null); // Remove preview
+                setFormData((prev) => ({ ...prev!, kitchenProfilePhoto: null })); // Update state
+                console.log("Profile image deleted successfully!");
+            }
+        } catch (error) {
+            console.error("Error deleting profile image:", error);
+        }
+    }
+
+    const deleteKitchenImage = async (imageUrl: string) => {
+        try {
+            const response = await axios.delete(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/kitchen/delete-kitchen-image?phoneNumber=${phoneNumber}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                },
+                data: { imageUrl }
+            })
+
+            if (response.status === 200) {
+                setFormData((prev) => ({
+                    ...prev!,
+                    kitchenImages: prev!.kitchenImages.filter((img) => img !== imageUrl),
+                }));
+                console.log("Kitchen image deleted successfully!");
+            }
+        } catch (error) {
+            console.error("Error deleting kitchen image:", error);
+        }
+    }
     return (
         <DefaultLayout>
             { }
@@ -424,7 +462,7 @@ const UpdateProfile = () => {
                                                     <img
                                                         src={
                                                             formData.kitchenProfilePhoto instanceof File
-                                                                ? URL.createObjectURL(formData.kitchenProfilePhoto) 
+                                                                ? URL.createObjectURL(formData.kitchenProfilePhoto)
                                                                 : formData.kitchenProfilePhoto || profilePreview || undefined
                                                         }
                                                         alt="Profile Preview"
@@ -435,8 +473,8 @@ const UpdateProfile = () => {
                                                 <div>
                                                     <span className="mb-1.5 text-black dark:text-white">Edit profile photo</span>
                                                     <span className="flex gap-2.5">
-                                                        <button className="text-sm hover:text-primary">Delete</button>
-                                                        <button className="text-sm hover:text-primary">Update</button>
+                                                        <button onClick={deleteProfilePicture} disabled={!profilePreview} className="text-sm hover:text-primary">Delete</button>
+
                                                     </span>
                                                 </div>
                                             </div>
@@ -494,8 +532,21 @@ const UpdateProfile = () => {
                                             <div className="grid grid-cols-3 gap-4 mt-2">
                                                 {/* Display preview images that the user has uploaded */}
                                                 {formData.kitchenImages.map((image, index) => (
-                                                    <img src={image} alt={`Uploaded Kitchen Image ${index}`} key={index} className="preview rounded h-[150px] w-[150px]" />
-
+                                                    // <img src={image} alt={`Uploaded Kitchen Image ${index}`} key={index} className="preview rounded h-[150px] w-[150px]" />
+                                                    <div key={index} className="relative group">
+                                                        <img
+                                                            src={image}
+                                                            alt={`Uploaded Kitchen Image ${index}`}
+                                                            className="preview rounded h-[150px] w-[150px]"
+                                                        />
+                                                        {/* Delete button appears on hover */}
+                                                        <button
+                                                            onClick={() => deleteKitchenImage(image)}
+                                                            className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
                                                 ))}
 
                                             </div>
